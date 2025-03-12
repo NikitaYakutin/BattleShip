@@ -1,30 +1,28 @@
+
 package com.battleship.client;
 
 import com.battleship.common.Cell;
 
 import javax.swing.*;
-import java.awt.*;
-import java.awt.event.MouseAdapter;
+        import java.awt.*;
+        import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-// Функциональный интерфейс для обратного вызова при выборе ячейки (для поля противника)
 interface CellClickListener {
     void onCellClick(CellCoordinate coord);
 }
 
-class BoardPanel extends JPanel {
+public class BoardPanel extends JPanel {
     private boolean isOwnBoard;
     private final int cellSize = 30;
     private final int gridSize = 10;
-    private Cell[][] cells;
-    private CellClickListener listener; // используется для поля противника
+    Cell[][] cells;
+    private CellClickListener listener;
 
-    // Конструктор для поля собственного расположения
     public BoardPanel(boolean isOwnBoard) {
         this(isOwnBoard, null);
     }
 
-    // Конструктор для поля противника с обработчиком кликов
     public BoardPanel(boolean isOwnBoard, CellClickListener listener) {
         this.isOwnBoard = isOwnBoard;
         this.listener = listener;
@@ -50,7 +48,6 @@ class BoardPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        // Рисуем сетку и заполняем ячейки в зависимости от состояния
         for (int i = 0; i < gridSize; i++) {
             for (int j = 0; j < gridSize; j++) {
                 int drawX = i * cellSize;
@@ -68,15 +65,38 @@ class BoardPanel extends JPanel {
             }
         }
     }
+
+    public void updateCell(int x, int y, boolean hit) {
+        if (x < gridSize && y < gridSize) {
+            cells[x][y].setHit(hit);
+            repaint();
+        }
+    }
+
+    public void setShips(java.util.List<com.battleship.common.Ship> ships) {
+        // Сброс поля
+        for (int i = 0; i < gridSize; i++)
+            for (int j = 0; j < gridSize; j++)
+                cells[i][j].setShip(false);
+        // Размещение кораблей согласно конфигурации
+        for (com.battleship.common.Ship ship : ships) {
+            int type = ship.getType();
+            int x = ship.getX();
+            int y = ship.getY();
+            String orientation = ship.getOrientation();
+            for (int k = 0; k < type; k++) {
+                if (orientation.equalsIgnoreCase("horizontal")) {
+                    if (x + k < gridSize)
+                        cells[x + k][y].setShip(true);
+                } else if (orientation.equalsIgnoreCase("vertical")) {
+                    if (y + k < gridSize)
+                        cells[x][y + k].setShip(true);
+                }
+            }
+        }
+        repaint();
+    }
 }
 
-// Вспомогательный класс для передачи координат ячейки
-class CellCoordinate {
-    private final int x, y;
-    public CellCoordinate(int x, int y) {
-        this.x = x;
-        this.y = y;
-    }
-    public int getX() { return x; }
-    public int getY() { return y; }
-}
+
+
