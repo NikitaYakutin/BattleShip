@@ -1,0 +1,5 @@
+<fleet>
+    <ship type="4" x="0" y="0" orientation="horizontal"/>
+    <ship type="3" x="2" y="3" orientation="vertical"/>
+    <!-- Добавьте остальные корабли -->
+</fleet>
