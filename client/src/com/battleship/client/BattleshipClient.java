@@ -1,61 +1,84 @@
 package com.battleship.client;
 
 import com.battleship.common.Move;
-import com.battleship.common.MoveResult;
 
 import java.io.*;
-import java.net.*;
-import javax.swing.SwingUtilities;
+import java.net.Socket;
 
 public class BattleshipClient {
     private Socket socket;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
-    private GameUpdateListener updateListener;
+    private ObjectInputStream input;
+    private ObjectOutputStream output;
+    private boolean myTurn = false;
 
-    public BattleshipClient(String serverIP, int serverPort, GameUpdateListener listener) throws IOException {
-        this.updateListener = listener;
-        socket = new Socket(serverIP, serverPort);
-        out = new ObjectOutputStream(socket.getOutputStream());
-        in  = new ObjectInputStream(socket.getInputStream());
-        new Thread(new Listener()).start();
+    public BattleshipClient(String serverIP, int port) throws IOException {
+        socket = new Socket(serverIP, port);
+        output = new ObjectOutputStream(socket.getOutputStream());
+        input = new ObjectInputStream(socket.getInputStream());
+
+        new Thread(this::listenToServer).start();
+    }
+
+    private void listenToServer() {
+        try {
+            while (true) {
+                Object response = input.readObject();
+
+                if (response instanceof String) {
+                    String message = (String) response;
+
+                    switch (message) {
+                        case "YOUR_TURN":
+                            myTurn = true;
+                            System.out.println("Ваш ход!");
+                            break;
+                        case "OPPONENT_TURN":
+                            myTurn = false;
+                            System.out.println("Ход противника...");
+                            break;
+                        case "HIT":
+                            System.out.println("Попадание!");
+                            break;
+                        case "MISS":
+                            System.out.println("Промах...");
+                            break;
+                        case "UPDATE_BOARD":
+                            Object boardData = input.readObject();
+                            updateBoard(boardData);
+                            break;
+                        default:
+                            System.out.println(message);
+                    }
+                }
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Ошибка связи с сервером: " + e.getMessage());
+        }
     }
 
     public void sendMove(int x, int y) {
+        if (!myTurn) {
+            System.out.println("Сейчас не ваш ход!");
+            return;
+        }
         try {
-            out.writeObject(new Move(x, y));
-            out.flush();
-        } catch (IOException e) { e.printStackTrace(); }
+            output.writeObject(new Move(x, y));
+            myTurn = false; // Ожидаем ответ от сервера
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    public void sendObject(Object obj) {
-        try {
-            out.writeObject(obj);
-            out.flush();
-        } catch (IOException e) { e.printStackTrace(); }
+    private void updateBoard(Object boardData) {
+        // Здесь вызываем метод обновления доски в GUI
+        System.out.println("Обновление игрового поля...");
     }
-
-    private class Listener implements Runnable {
-        @Override
-        public void run() {
-            try {
-                Object response;
-                while ((response = in.readObject()) != null) {
-                    if (response instanceof MoveResult) {
-                        final MoveResult result = (MoveResult) response; // объявляем финальную переменную
-                        if (updateListener != null) {
-                            SwingUtilities.invokeLater(() -> updateListener.updateGame(result));
-                        }
-                    } else if (response instanceof String) {
-                        final String status = (String) response; // объявляем финальную переменную
-                        if (updateListener != null) {
-                            SwingUtilities.invokeLater(() -> updateListener.updateStatus(status));
-                        }
-                    }
-                }
-            } catch (IOException | ClassNotFoundException e) {
-                System.err.println("Ошибка получения данных от сервера: " + e.getMessage());
-            }
+    public void sendMessage(Object message) {
+        try {
+            output.writeObject(message);
+            output.flush();
+        } catch (IOException e) {
+            System.err.println("Ошибка при отправке сообщения: " + e.getMessage());
         }
     }
 

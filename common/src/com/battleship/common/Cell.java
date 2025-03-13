@@ -4,22 +4,22 @@ import java.io.Serializable;
 
 public class Cell implements Serializable {
     private final int x, y;
-    private boolean isShip;
     private boolean isHit;
+    private boolean hasShip; // Флаг наличия корабля
 
     public Cell(int x, int y) {
         this.x = x;
         this.y = y;
-        this.isShip = false;
         this.isHit = false;
+        this.hasShip = false; // По умолчанию корабля нет
     }
 
-    public boolean isShip() {
-        return isShip;
+    public int getX() {
+        return x;
     }
 
-    public void setShip(boolean ship) {
-        isShip = ship;
+    public int getY() {
+        return y;
     }
 
     public boolean isHit() {
@@ -27,7 +27,14 @@ public class Cell implements Serializable {
     }
 
     public void setHit(boolean hit) {
-        isHit = hit;
+        this.isHit = hit;
+    }
+
+    public boolean hasShip() {
+        return hasShip;
+    }
+
+    public void setShip(boolean hasShip) {
+        this.hasShip = hasShip;
     }
 }
-

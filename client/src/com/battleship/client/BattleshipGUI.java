@@ -24,7 +24,6 @@ public class BattleshipGUI extends JFrame implements GameUpdateListener {
 
         ownBoard = new BoardPanel(true);
         enemyBoard = new BoardPanel(false, move -> {
-            // При клике по полю противника отправляем ход на сервер
             if (client != null) {
                 client.sendMove(move.getX(), move.getY());
             }
@@ -46,15 +45,13 @@ public class BattleshipGUI extends JFrame implements GameUpdateListener {
 
     private void connectToServer() {
         try {
-            client = new BattleshipClient("localhost", 12345, this);
+            client = new BattleshipClient("localhost", 12345); // Убрали третий аргумент
             statusArea.append("Подключено к серверу.\n");
 
-            // Автоматическая расстановка кораблей через FleetConfigParser
+            // Автоматическая расстановка кораблей
             List<Ship> ships = FleetConfigParser.parseFleetConfig(getClass().getResource("/fleet.xml").getFile());
-            // Обновляем собственное поле клиента
-            ownBoard.setShips(ships);
-            // Отправляем информацию о кораблях на сервер
-            client.sendObject(new ShipPlacement(ships));
+            ownBoard.setShips(ships); // Теперь метод существует
+            client.sendMessage(new ShipPlacement(ships)); // Используем sendMessage
 
         } catch (Exception ex) {
             statusArea.append("Ошибка подключения: " + ex.getMessage() + "\n");
@@ -63,9 +60,8 @@ public class BattleshipGUI extends JFrame implements GameUpdateListener {
 
     @Override
     public void updateGame(MoveResult result) {
-        // Обновляем поля – для демонстрации обновляем обе панели
         enemyBoard.updateCell(result.getX(), result.getY(), true);
-        ownBoard.updateCell(result.getX(), result.getY(), true);
+        ownBoard.updateCell(result.getX(), result.getY(), false);
         statusArea.append(result.getMessage() + "\n");
     }
 
