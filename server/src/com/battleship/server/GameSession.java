@@ -26,25 +26,23 @@ public class GameSession {
 
     public synchronized boolean makeMove(String player, int x, int y) {
         if (!player.equals(currentPlayer)) {
-            return false; // Игрок пытается ходить не в свою очередь
+            return false; // Игрок не должен делать ход, если это не его очередь
         }
 
+        // Обработка выстрела
         Cell[][] opponentField = player.equals(player1) ? fieldPlayer2 : fieldPlayer1;
         Cell target = opponentField[x][y];
 
         if (target.isHit()) {
-            return false; // Уже стреляли в эту клетку
+            return false; // Уже попадали в эту клетку
         }
 
-        target.setHit(true);
-
-        // Переключаем ход только если не попал
-        if (!target.hasShip()) {
-            currentPlayer = player.equals(player1) ? player2 : player1;
-        }
+        target.setHit(true); // Отмечаем попадание
+        currentPlayer = (player.equals(player1)) ? player2 : player1; // Переключение хода
 
         return true;
     }
+
 
     public synchronized String getCurrentPlayer() {
         return currentPlayer;
