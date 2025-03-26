@@ -1,85 +1,124 @@
 package com.battleship.client;
 
-import com.battleship.common.Move;
+import com.battleship.server.GameData;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.util.concurrent.TimeUnit;
 
 public class BattleshipClient {
-    private Socket socket;
-    private ObjectInputStream input;
-    private ObjectOutputStream output;
-    private boolean myTurn = false;
+    private Socket clientSocket;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
+    private String serverAddress;
+    private int serverPort;
+    private boolean connected = false;
+    private final int CONNECTION_TIMEOUT = 10000; // 10 секунд
+    private final int READ_TIMEOUT = 30000; // 30 секунд
 
-    public BattleshipClient(String serverIP, int port) throws IOException {
-        socket = new Socket(serverIP, port);
-        output = new ObjectOutputStream(socket.getOutputStream());
-        input = new ObjectInputStream(socket.getInputStream());
-
-        new Thread(this::listenToServer).start();
+    public BattleshipClient(String serverAddress, int serverPort) {
+        this.serverAddress = serverAddress;
+        this.serverPort = serverPort;
     }
 
-    private void listenToServer() {
+    public boolean connect() {
         try {
-            while (true) {
-                Object response = input.readObject();
+            clientSocket = new Socket();
+            clientSocket.connect(new InetSocketAddress(serverAddress, serverPort), CONNECTION_TIMEOUT);
+            clientSocket.setSoTimeout(READ_TIMEOUT);
 
-                if (response instanceof String) {
-                    String message = (String) response;
+            out = new ObjectOutputStream(clientSocket.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(clientSocket.getInputStream());
 
-                    switch (message) {
-                        case "YOUR_TURN":
-                            myTurn = true;
-                            System.out.println("Ваш ход!");
-                            break;
-                        case "OPPONENT_TURN":
-                            myTurn = false;
-                            System.out.println("Ход противника...");
-                            break;
-                        case "HIT":
-                            System.out.println("Попадание!");
-                            break;
-                        case "MISS":
-                            System.out.println("Промах...");
-                            break;
-                        case "UPDATE_BOARD":
-                            Object boardData = input.readObject();
-                            updateBoard(boardData);
-                            break;
-                        default:
-                            System.out.println(message);
-                    }
-                }
-            }
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Ошибка связи с сервером: " + e.getMessage());
+            connected = true;
+            System.out.println("Подключено к серверу: " + serverAddress + ":" + serverPort);
+            return true;
+        } catch (IOException e) {
+            System.err.println("Ошибка подключения к серверу: " + e.getMessage());
+            cleanupConnection();
+            return false;
         }
     }
 
-    public void sendMove(int x, int y) {
-        if (!myTurn) {
-            System.out.println("Сейчас не ваш ход!");
+    public boolean isConnected() {
+        return connected && clientSocket != null && !clientSocket.isClosed();
+    }
+
+    public void sendData(GameData data) {
+        if (!isConnected()) {
+            System.err.println("Не удалось отправить данные: соединение отсутствует");
             return;
         }
+
         try {
-            output.writeObject(new Move(x, y));
-            myTurn = false; // Ожидаем ответ от сервера
+            out.writeObject(data);
+            out.flush();
+            out.reset(); // Сбрасываем кеш объектов для предотвращения проблем с сериализацией
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Ошибка при отправке данных: " + e.getMessage());
+            cleanupConnection();
         }
     }
 
-    private void updateBoard(Object boardData) {
-        // Здесь вызываем метод обновления доски в GUI
-        System.out.println("Обновление игрового поля...");
-    }
-    public void sendMessage(Object message) {
+    public GameData receiveData() {
+        if (!isConnected()) {
+            System.err.println("Не удалось получить данные: соединение отсутствует");
+            return null;
+        }
+
         try {
-            output.writeObject(message);
-            output.flush();
-        } catch (IOException e) {
-            System.err.println("Ошибка при отправке сообщения: " + e.getMessage());
+            return (GameData) in.readObject();
+        } catch (SocketTimeoutException e) {
+            System.err.println("Таймаут при ожидании данных от сервера");
+            return null;
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Ошибка при получении данных: " + e.getMessage());
+            cleanupConnection();
+            return null;
         }
     }
 
+    public GameData receiveDataWithTimeout(long timeout) {
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + timeout;
+
+        while (System.currentTimeMillis() < endTime) {
+            if (!isConnected()) return null;
+
+            try {
+                if (in.available() > 0) {
+                    return (GameData) in.readObject();
+                }
+                TimeUnit.MILLISECONDS.sleep(100);
+            } catch (Exception e) {
+                System.err.println("Ошибка при получении данных с таймаутом: " + e.getMessage());
+                cleanupConnection();
+                return null;
+            }
+        }
+        return null; // Таймаут истек
+    }
+
+    public void disconnect() {
+        cleanupConnection();
+        System.out.println("Отключено от сервера");
+    }
+
+    private void cleanupConnection() {
+        connected = false;
+        try {
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (clientSocket != null) clientSocket.close();
+        } catch (IOException e) {
+            System.err.println("Ошибка при закрытии соединения: " + e.getMessage());
+        } finally {
+            in = null;
+            out = null;
+            clientSocket = null;
+        }
+    }
 }
